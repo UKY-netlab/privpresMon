@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Set DR.OHN ID
+if [ ! -e /etc/drohn ]; then
+	mkdir -p /etc/drohn
+fi
+if [ ! -e /etc/drohn/ID ]; then
+	# Get LAN-facing MAC address as ID
+	LAN_MAC=`ifconfig br-lan | awk '/HWaddr / { gsub(":","", $5); print $5   }'`
+	echo $LAN_MAC > /etc/drohn/ID
+	# Change router name using UCI
+	ROUTER_NAME="wildcat-"
+	ROUTER_NAME+=`cat /etc/drohn/ID`
+	uci set system.@system[0].hostname=$ROUTER_NAME
+	uci commit system
+	echo ${ROUTER_NAME} > /proc/sys/kernel/hostname
+fi
+
+# File system related
+if [ ! -e /mnt/drohn ]; then
+	mkdir -p /mnt/drohn
+fi
+if [ -e /tmp/drohn_vault_dir ]; then
+	rm /tmp/drohn_vault_dir
+fi
+if [ -e /dev/sda1 ]; then
+	if ! mount | grep /mnt/drohn > /dev/null; then
+		mount -t ext4 /dev/sda1 /mnt/drohn -o rw
+		echo `date` ": USB drive mounted on /mnt/drohn" >> /tmp/drohn.log
+	fi
+	if [ ! -e /mnt/drohn/upload ]; then
+		mkdir -p /mnt/drohn/upload
+	fi
+	ln -s /mnt/drohn /tmp/drohn_vault_dir
+else
+	echo `date` ": USB drive not found, use /tmp/drohn_vault" >> /tmp/drohn.log
+	mkdir -p /tmp/drohn_vault
+	ln -s /tmp/drohn_vault /tmp/drohn_vault_dir
+fi
+if [ ! -e /tmp/drohn_vault_dir/backup ]; then
+	mkdir -p /tmp/drohn_vault_dir/backup
+fi
+if [ ! -e /tmp/drohn_vault_dir/dashboard ]; then
+	mkdir -p /tmp/drohn_vault_dir/dashboard
+fi
+if [ ! -e /www/dashboard ]; then
+	ln -s /tmp/drohn_vault_dir/dashboard /www/dashboard
+fi
+
+mkdir -p /tmp/drohn_step_dir
+
+# Set drohn.conf
+echo -n '' > /tmp/drohn.conf
+echo "lan_if = br-lan" >> /tmp/drohn.conf
+echo "wan_if = `uci get network.wan.ifname`" >> /tmp/drohn.conf
+
+# Edit hosts file
+echo "127.0.0.1 localhost" > /tmp/drohn_step_dir/hosts
+echo "`uci get network.lan.ipaddr` myrouter.home" >> /tmp/drohn_step_dir/hosts
+mv /tmp/drohn_step_dir/hosts /etc/hosts
+
+# Check crontab files
+if [ ! -e /etc/crontabs/root ]; then
+	echo -n '' > /etc/crontabs/root
+fi
+echo -n '' > /tmp/crontab-new
+for filepath in /etc/drohn/cron/*; do
+	cat $filepath >> /tmp/crontab-new
+done
+cat /etc/crontabs/root /tmp/crontab-new | sort -u > /etc/crontabs/root
+rm /tmp/crontab-new
+
+# Restart and enable crontab
+/etc/init.d/cron stop
+/etc/init.d/cron start
+/etc/init.d/cron enable

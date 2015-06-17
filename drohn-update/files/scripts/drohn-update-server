@@ -1,0 +1,8 @@
+#!/bin/bash
+
+ROUTER_NAME="wildcat_"
+ROUTER_NAME+=`cat /etc/drohn/ID`
+
+if [ -e /etc/drohn/installed_pkgs ]; then
+	cp /etc/drohn/installed_pkgs /tmp/drohn_vault_dir/update_ack/${ROUTER_NAME}_pkgs
+fi

@@ -1,0 +1,2 @@
+0 4 * * * echo 3 > /proc/sys/vm/drop_caches
+*/5 * * * * /usr/bin/drohn-maintain

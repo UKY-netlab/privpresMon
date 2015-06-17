@@ -1,0 +1,12 @@
+#!/bin/bash
+
+UPDATE_DIR=/tmp/drohn_vault_dir/updates
+
+if [ -e $UPDATE_DIR ]; then
+	for filepath in ${UPDATE_DIR}/*; do
+		# Install the package
+		opkg install $filepath
+		sleep 1
+	done
+	rm ${UPDATE_DIR}/*
+fi

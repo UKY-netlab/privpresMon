@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [ `pidof drohn-upload | wc -w` -lt 3 ]; then
+	delay=$(( $RANDOM % 45 ))
+	sleep $delay
+	if [ -e /tmp/drohn_vault_dir/upload ]; then
+		for filepath in /tmp/drohn_vault_dir/upload/wildcat_*; do
+			filename=${filepath##*/}
+			# Successful upload removes the file
+			if [ "$filename" != 'wildcat_*' ]; then
+				curlput $filepath https://homenet-serv03.netlab.uky.edu/cgi-bin/tools/upload.php?file_name=$filename
+			fi
+			sleep 1
+		done
+	fi
+	if [ -e /tmp/drohn_vault_dir/update_ack ]; then
+		for filepath in /tmp/drohn_vault_dir/update_ack/*; do
+			filename=${filepath##*/}
+			# Successful upload removes the file
+			if [ "$filename" != '*' ]; then
+				curlput $filepath https://homenet-serv03.netlab.uky.edu/cgi-bin/tools/checkin.php?file_name=$filename
+			fi
+			sleep 1
+		done
+	fi
+fi

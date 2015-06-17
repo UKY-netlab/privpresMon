@@ -1,0 +1,30 @@
+#!/bin/bash
+
+function set_config(){
+	sed -i "s/^\($1\s*=\s*\).*\$/\1$2/" $3
+}
+
+# Check wan_if in drohn.conf
+CONFIG=/etc/drohn/drohn.conf
+TMP_CONFIG=/tmp/drohn_step_dir/drohn.conf
+cp $CONFIG $TMP_CONFIG
+source $CONFIG
+new_wan=`uci get network.wan.ifname`
+if [ "$wan_if" != "$new_wan" ]; then
+	set_config wan_if $new_wan $TMP_CONFIG
+	mv $TMP_CONFIG $CONFIG 
+else
+	rm $TMP_CONFIG
+fi
+
+# Check /etc/hosts
+HOSTS=/etc/hosts
+TMP_HOSTS=/tmp/drohn_step_dir/hosts_tmp
+orig_lan=`cat $HOSTS | grep myrouter | awk '{ print $1 }'`
+cur_lan=`uci get network.lan.ipaddr`
+if [ "$orig_lan" != "$cur_lan" ]; then
+	cat $HOSTS | grep -v myrouter.home > $TMP_HOSTS
+	echo "$cur_lan myrouter.home" >> $TMP_HOSTS
+	mv $TMP_HOSTS $HOSTS
+	/etc/init.d/dnsmasq restart
+fi

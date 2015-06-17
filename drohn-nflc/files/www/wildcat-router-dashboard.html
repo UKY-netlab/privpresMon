@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- <meta http-equiv="refresh" content="180" >  -->
+<title>Wildcat Home Router Dashboard</title>
+<link rel="icon" href="./images/favicon_intvl.ico">
+<link href="./scripts/wildcat-router-dashboard.css" rel="stylesheet" type="text/css">
+<style>
+p#timestamp { 
+  color: white;
+  margin-top: -1em;
+  margin-bottom: 0em;
+}
+
+#chart1-1,#chart1-2,
+#chart2-3,
+#chart3-3,
+#chart4-3,
+#chart5-3,
+#chart6-3,
+#chart7-3,
+#chart8-3,
+#chart9-3,
+#chart10-3,{
+  height: 545px;
+}
+
+#chart2-1, #chart2-2,
+#chart3-1, #chart3-2,
+#chart4-1, #chart4-2,
+#chart5-1, #chart5-2,
+#chart6-1, #chart6-2,
+#chart7-1, #chart7-2,
+#chart8-1, #chart8-2,
+#chart9-1, #chart9-2,
+#chart10-1, #chart10-2 {
+  height: 245px;
+}
+
+.node rect {
+  cursor: move;
+  fill-opacity: .9;
+  shape-rendering: crispEdges;
+}
+
+.node text {
+  pointer-events: none;
+  text-shadow: 0 1px 0 #fff;
+}
+
+.link {
+  fill: none;
+  stroke: #0f0;
+  stroke-opacity: .3;
+}
+
+.link:hover {
+  stroke-opacity: .5;
+}
+
+.tooltip{ 
+  background-color:rgba(250,250,210,0.9);
+  margin: 5px;
+  padding-left: 5px; 
+  padding-top: 5px;
+  padding-right: 5px; 
+  padding-bottom: 5px;
+  -webkit-border-radius:6px;
+  -moz-border-radius:6px;
+  border-radius:6px;
+}
+
+</style>
+</head>
+<body>
+<div id="wrapper">
+
+  <h1>My Wildcat Home Router</h1>
+  <h3><p id="timestamp" align="center">Network status during last five minutes as of --:--:--</p></h3>
+  <div style="float:right; position:relative; color:white;">
+    <input type="checkbox" onclick="toggleAutoRefresh(this);" id="CB"> Auto Refresh</input>
+  </div>
+  <p><br></p>
+  <script type="text/javascript" src="./scripts/yui-compressed.js"></script>
+  <script type="text/javascript">
+    var reloading;
+    function checkReloading() {
+      if (window.location.hash=="#auto_refresh") {
+        reloading=setTimeout("window.location.reload();", 120000);
+        document.getElementById("CB").checked = true;
+      }
+    }
+    function toggleAutoRefresh(cb) {
+      if (cb.checked) {
+        window.location.replace("#auto_refresh");
+        reloading=setTimeout("window.location.reload();", 12000);
+      } else {
+        window.location.replace("#");
+        clearTimeout(reloading);
+      }
+    }
+    //This event is called when the DOM is fully loaded
+    window.addEvent("domready",function(){
+      var csvRequest = new Request({
+        url:"./dashboard/timestamp",
+        onSuccess:function(response){
+          var ts = parseInt(response)*1000;
+          var time = new Date(ts);
+          var date = time.toLocaleString();
+          $("timestamp").innerHTML = "Network status during last five minutes as of "+date;
+        }
+      }).send(); //Don't forget to send our request!
+    });
+  </script>
+
+  <div id="tabContainer">
+    <div id="tabs">
+      <ul>
+        <li id="tabHeader_1">Connected<br>Hosts</li>
+        <li id="tabHeader_6">Outgoing<br>Packets</li>
+        <li id="tabHeader_7">Outgoing<br>Bytes</li>
+        <li id="tabHeader_9">Incoming<br>Packets</li>
+        <li id="tabHeader_10">Incoming<br>Bytes</li>
+      </ul>
+    </div>
+    <div id="tabscontent">
+      <script type="text/javascript" src="./scripts/d3.v2.min.js"></script>
+      <script type="text/javascript" src="./scripts/sankey.js"></script>
+      <script type="text/javascript" src="./scripts/tooltip.js"></script>
+      <script>
+        var margin = {top: 5, right: 15, bottom: 5, left: 15},
+            width = 520 - margin.left - margin.right,
+            height_large = 540 - margin.top - margin.bottom;
+            height_small = 240 - margin.top - margin.bottom;
+        var formatInteger = d3.format(",.0f"),
+            formatFloat = d3.format(",.2f"),
+            format_chosts = function(d) { return formatInteger(d) + " hosts"; },
+            format_ahosts = function(d) { return formatInteger(d) + " hosts"; },
+            format_cflows = function(d) { return formatInteger(d) + " flows"; },
+            format_aflows = function(d) { return formatInteger(d) + " flows"; },
+            format_cpkts = function(d) { return formatInteger(d) + " packets"; },
+            format_apkts = function(d) { return formatInteger(d) + " packets"; },
+            format_bytes = function(d) {
+                              var ret = formatInteger(d) + " bytes";
+                              var gb = d/1000000000;
+                              if (gb>=1){
+                                ret += " ("+ formatFloat(gb) +" GB)";
+                              } else {
+                                var mb = d/1000000;
+                                if (mb>=1) {
+                                  ret += " ("+ formatFloat(mb) +" MB)";
+                                } else {
+                                  var kb = d/1000;
+                                  if (kb >= 1) {
+                                    ret += " ("+ formatFloat(kb) +" KB)";
+                                  }
+                                }
+                              }
+                              return ret; 
+                            },
+            color1 = d3.scale.category20();
+            color2 = d3.scale.category20b();
+            color3 = d3.scale.category20c();
+        var sankey_large = d3.sankey()
+            .nodeWidth(15)
+            .nodePadding(10)
+            .size([width, height_large]);
+        var sankey_small = d3.sankey()
+            .nodeWidth(15)
+            .nodePadding(10)
+            .size([width, height_small]);
+      </script>
+      <!--Foreign Hosts-->
+      <div class="tabpage" id="tabpage_1">
+        <table border="1" align="center">
+          <tr>
+            <td>
+              <img src="./images/indicator_current_intvl.png" height="55" width="520"
+              title="Number of connected outside hosts.">
+            </td>
+            <td>
+              <img src="./images/indicator_average_intvl.png" height="55" width="520"
+              title="Recent trend (last one hour) of connected outside hosts.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart1-1">
+              <script>
+                var svg1_1 = d3.select("#chart1-1").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_large + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_large.link();
+
+                d3.json("./dashboard/01_current_hosts.json", function(bg) {
+
+                  sankey_large
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg1_1.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <--> "+d.target.name+"<br>"+format_chosts(d.value);
+                        }));
+
+                  var node = svg1_1.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_large.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_chosts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_large.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_large - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+            <td>
+              <p id="chart1-2">
+              <script>
+                var svg1_2 = d3.select("#chart1-2").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_large + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_large.link();
+
+                d3.json("./dashboard/01_avg_hosts.json", function(bg) {
+
+                  sankey_large
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg1_2.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <--> "+d.target.name+"<br>"+format_ahosts(d.value);
+                        }));
+
+                  var node = svg1_2.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_large.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_ahosts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_large.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_large - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <!--Outgoing Packets-->
+      <div class="tabpage" id="tabpage_6">
+        <table border="1" align="center">
+          <tr>
+            <td class="inditop">
+              <img src="./images/indicator_current_intvl.png" height="55" width="520"
+              title="Number of outgoing network packets.">
+            </td>
+            <td class="inditop">
+              <img src="./images/indicator_topk_intvl.png" height="55" width="520"
+              title="Top 5 links with most two-way network packets for each local host.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart6-1">
+              <script>
+                var svg6_1 = d3.select("#chart6-1").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/06_current_pkts_l2f.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg6_1.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" --> "+d.target.name+"<br>"+format_cpkts(d.value);
+                        }));
+
+                  var node = svg6_1.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color2(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_cpkts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+            <td rowspan="3">
+              <p id="chart6-3">
+              <script>
+                var svg6_3 = d3.select("#chart6-3").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_large + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_large.link();
+
+                d3.json("./dashboard/06_topk_pdeg_l2f.json", function(bg) {
+
+                  sankey_large
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg6_3.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" --> "+d.target.name+"<br>"+format_cpkts(d.value);
+                        }));
+
+                  var node = svg6_3.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_large.nodeWidth())
+                      .style("fill", function(d) { return d.color = color2(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_cpkts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_large.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_large - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <img src="./images/indicator_average_intvl.png" height="55" width="520"
+              title="Recent trend (last one hour) of outgoing network packets.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart6-2">
+              <script>
+                var svg6_2 = d3.select("#chart6-2").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/06_avg_pkts_l2f.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg6_2.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" --> "+d.target.name+"<br>"+format_apkts(d.value);
+                        }));
+
+                  var node = svg6_2.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color2(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_apkts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <!--Outgoing Bytes-->
+      <div class="tabpage" id="tabpage_7">
+        <table border="1" align="center">
+          <tr>
+            <td>
+              <img src="./images/indicator_current_intvl.png" height="55" width="520"
+              title="Number of outgoing network bytes.">
+            </td>
+            <td>
+              <img src="./images/indicator_topk_intvl.png" height="55" width="520"
+              title="Top 5 links with most two-way network bytes for each local host.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart7-1">
+              <script>
+                var svg7_1 = d3.select("#chart7-1").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/07_current_bytes_l2f.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg7_1.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" --> "+d.target.name+"<br>"+format_bytes(d.value);
+                        }));
+
+                  var node = svg7_1.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_bytes(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+            <td rowspan="3">
+              <p id="chart7-3">
+              <script>
+                var svg7_3 = d3.select("#chart7-3").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_large + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_large.link();
+
+                d3.json("./dashboard/07_topk_bdeg_l2f.json", function(bg) {
+
+                  sankey_large
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg7_3.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" --> "+d.target.name+"<br>"+format_bytes(d.value);
+                        }));
+
+                  var node = svg7_3.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_large.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_bytes(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_large.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_large - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <img src="./images/indicator_average_intvl.png" height="55" width="520"
+              title="Recent trend (last one hour) of outgoing network bytes.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart7-2">
+              <script>
+                var svg7_2 = d3.select("#chart7-2").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/07_avg_bytes_l2f.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg7_2.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" --> "+d.target.name+"<br>"+format_bytes(d.value);
+                        }));
+
+                  var node = svg7_2.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_bytes(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <!--Incoming Packets-->
+      <div class="tabpage" id="tabpage_9">
+        <table border="1" align="center">
+          <tr>
+            <td class="inditop">
+              <img src="./images/indicator_current_intvl.png" height="55" width="520"
+              title="Number of incoming network packets.">
+            </td>
+            <td class="inditop">
+              <img src="./images/indicator_topk_intvl.png" height="55" width="520"
+              title="Top 5 links with most incoming network packets for each local host.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart9-1">
+              <script>
+                var svg9_1 = d3.select("#chart9-1").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/09_current_pkts_f2l.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg9_1.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <-- "+d.target.name+"<br>"+format_cpkts(d.value);
+                        }));
+
+                  var node = svg9_1.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color2(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_cpkts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+            <td rowspan="3">
+              <p id="chart9-3">
+              <script>
+                var svg9_3 = d3.select("#chart9-3").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_large + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_large.link();
+
+                d3.json("./dashboard/09_topk_pdeg_f2l.json", function(bg) {
+
+                  sankey_large
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg9_3.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <-- "+d.target.name+"<br>"+format_cpkts(d.value);
+                        }));
+
+                  var node = svg9_3.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_large.nodeWidth())
+                      .style("fill", function(d) { return d.color = color2(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_cpkts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_large.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_large - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <img src="./images/indicator_average_intvl.png" height="55" width="520"
+              title="Recent trend (last one hour) of incoming network packets.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart9-2">
+              <script>
+                var svg9_2 = d3.select("#chart9-2").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/09_avg_pkts_f2l.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg9_2.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <-- "+d.target.name+"<br>"+format_apkts(d.value);
+                        }));
+
+                  var node = svg9_2.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color2(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_apkts(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <!--Incoming Bytes-->
+      <div class="tabpage" id="tabpage_10">
+        <table border="1" align="center">
+          <tr>
+            <td>
+              <img src="./images/indicator_current_intvl.png" height="55" width="520"
+              title="Number of incoming network bytes.">
+            </td>
+            <td>
+              <img src="./images/indicator_topk_intvl.png" height="55" width="520"
+              title="Top 5 links with most incoming network bytes for each local host.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart10-1">
+              <script>
+                var svg10_1 = d3.select("#chart10-1").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/10_current_bytes_f2l.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg10_1.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <-- "+d.target.name+"<br>"+format_bytes(d.value);
+                        }));
+
+                  var node = svg10_1.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_bytes(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+            <td rowspan="3">
+              <p id="chart10-3">
+              <script>
+                var svg10_3 = d3.select("#chart10-3").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_large + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_large.link();
+
+                d3.json("./dashboard/10_topk_bdeg_f2l.json", function(bg) {
+
+                  sankey_large
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg10_3.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <-- "+d.target.name+"<br>"+format_bytes(d.value);
+                        }));
+
+                  var node = svg10_3.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_large.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_bytes(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_large.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_large - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <img src="./images/indicator_average_intvl.png" height="55" width="520"
+              title="Recent trend (last one hour) of incoming network bytes.">
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <p id="chart10-2">
+              <script>
+                var svg10_2 = d3.select("#chart10-2").append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height_small + margin.top + margin.bottom)
+                  .append("g")
+                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                var path = sankey_small.link();
+
+                d3.json("./dashboard/10_avg_bytes_f2l.json", function(bg) {
+
+                  sankey_small
+                      .nodes(bg.nodes)
+                      .links(bg.links)
+                      .layout(32);
+
+                  var link = svg10_2.append("g").selectAll(".link")
+                      .data(bg.links)
+                    .enter().append("path")
+                      .attr("class", "link")
+                      .attr("d", path)
+                      .style("stroke-width", function(d) { return Math.max(1, d.dy); })
+                      .style("stroke", function(d) { return d3.rgb(d.source); })
+                      .sort(function(a, b) { return b.dy - a.dy; })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.source.name+" <--> "+d.target.name+"<br>"+format_bytes(d.value);
+                        }));
+
+                  var node = svg10_2.append("g").selectAll(".node")
+                      .data(bg.nodes)
+                    .enter().append("g")
+                      .attr("class", "node")
+                      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+                    .call(d3.behavior.drag()
+                      .origin(function(d) { return d; })
+                      .on("dragstart", function() { this.parentNode.appendChild(this); })
+                      .on("drag", dragmove));
+
+                  node.append("rect")
+                      .attr("height", function(d) { return d.dy; })
+                      .attr("width", sankey_small.nodeWidth())
+                      .style("fill", function(d) { return d.color = color3(d.name.replace(/ .*/, "")); })
+                      .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
+                      .call(d3.helper.tooltip(
+                        function(d, i){
+                          return d.name+"<br>MAC: "+d.mac+"<br>IP: "+d.ip+"<br>" + format_bytes(d.value);
+                        }));
+
+                  node.append("text")
+                      .attr("x", -6)
+                      .attr("y", function(d) { return d.dy / 2; })
+                      .attr("dy", ".35em")
+                      .attr("font-size","11.5px")
+                      .attr("text-anchor", "end")
+                      .attr("transform", null)
+                      .text(function(d) { return d.name; })
+                    .filter(function(d) { return d.x < width / 2; })
+                      .attr("x", 6 + sankey_small.nodeWidth())
+                      .attr("text-anchor", "start");
+
+                  function dragmove(d) {
+                    d3.select(this).attr("transform", "translate(" + d.x + "," + (d.y = Math.max(0, Math.min(height_small - d.dy, d3.event.y))) + ")");
+                    sankey_large.relayout();
+                    link.attr("d", path);
+                  }
+                });
+              </script>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="./scripts/tabs.js"></script>
+</body>
+<footer>
+  <small>
+    Copyright © 2014-2015 Wildcat Home Router, Lab for Advanced Networking, University of Kentucky
+    <img src="./cgi-bin/dashboard-hit.sh" height="0" width="0">
+  </small>
+</footer>
+<script>
+  checkReloading();
+</script>
+</html>

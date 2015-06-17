@@ -1,0 +1,28 @@
+#!/bin/bash
+
+CACERT=/etc/drohn/certs/cacert.pem
+CERT=/etc/drohn/certs/wildcat_router.crt
+KEY=/etc/drohn/private/wildcat_router.key
+URL=https://homenet-serv03.netlab.uky.edu/cgi-bin/tools/update.py
+DEST=/tmp/drohn_step_dir/new_pkgs
+UPDATE_DIR=/tmp/drohn_vault_dir/updates
+ROUTER_NAME="wildcat_"
+ROUTER_NAME+=`cat /etc/drohn/ID`
+
+curl --cacert $CACERT --cert $CERT --key $KEY ${URL}?name=${ROUTER_NAME} > $DEST
+
+sleep 1
+
+count=0
+while read line
+do
+	if [ $count == 0 ] && [ $line != wildcat ];then
+		break
+	fi
+	if [ $count -gt 0 ]; then
+		IFS=', ' read filename filepath <<< "$line"
+		curl --cacert $CACERT --cert $CERT --key $KEY $filepath > ${UPDATE_DIR}/${filename}
+	fi
+	count=$[$count +1]
+done < $DEST
+

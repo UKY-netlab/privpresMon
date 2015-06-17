@@ -1,0 +1,1 @@
+cmd_/home/xuzizhou/Dropbox/00Project/Experiments/nfl_mod/kernel_mod/src/nfl_mod.o := mips-openwrt-linux-uclibc-ld  -m elf32btsmip   -r -o /home/xuzizhou/Dropbox/00Project/Experiments/nfl_mod/kernel_mod/src/nfl_mod.o /home/xuzizhou/Dropbox/00Project/Experiments/nfl_mod/kernel_mod/src/nfl.o /home/xuzizhou/Dropbox/00Project/Experiments/nfl_mod/kernel_mod/src/nfl_functions.o 

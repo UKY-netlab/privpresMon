@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Check nfl_mod
+if [ -e /etc/nflc/nfl_mod.ko ] && [ ! -e /sys/module/nfl_mod ]; then
+	insmod /etc/nflc/nfl_mod.ko
+	echo `date` ": nfl_mod module loaded" >> /tmp/drohn.log
+fi
+if [ -e /etc/nflc/dnsres.ko ] && [ ! -e /sys/module/dnsres ]; then
+	insmod /etc/nflc/dnsres.ko
+	echo `date` ": dnsres module loaded" >> /tmp/drohn.log
+fi
+
+# Check nflc
+if [ -e /sys/module/nfl_mod ] && [ -e /sys/module/dnsres ]; then
+	if [ ! "$(pidof nflc)" ]; then
+		nflc -d /tmp/drohn_vault_dir &
+		echo `date` ": nflc started" >> /tmp/drohn.log
+	fi
+fi
