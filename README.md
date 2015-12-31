@@ -1,5 +1,13 @@
 # privpresMon
-Privacy-preserving passive traffic monitoring for OpenWRT
+Privacy-preserving passive traffic monitoring for OpenWRT.  Takes
+5-minute snapshots of flows between inside nodes and outside nodes,
+including inside device, outside IP address, ports, bytes
+upstream/downstream, and packets upstream/downstream.  Outside IP
+addresses are encrypted, inside addresses are replaced with ordinal
+numbers; mappings are consistent across the life of the router.
+
+This project was supported by the US National Science Foundation under
+grants number IIS-0904350 and CNS-1058977.
 
 ## Kernel Modules
 #### dnsres_mod
