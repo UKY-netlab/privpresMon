@@ -11,10 +11,10 @@ grants number IIS-0904350 and CNS-1058977.
 
 ## Kernel Modules
 #### dnsres_mod
-Linux kernel module to perform reverser DNS resolution by inspecting DNS packets. The resolution table could be obtained from user space by reading specific proc file.
+Linux kernel module to perform reverse DNS resolution by inspecting DNS packets. The resolution table could be obtained from user space by reading specific proc file.
 
 #### nfl_mod
-Linux kernel module to capture cross-boundary network packets and aggregate them in to unidirectional flows. The store flow data could be obtained from user space by reading specific proc file.
+Linux kernel module to capture cross-boundary network packets and aggregate them in to unidirectional flows. The stored flow data can be obtained from user space by reading specific proc file.
 
 ## OpenWrt Packages
 #### drohn-mgmt
