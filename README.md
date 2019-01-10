@@ -14,7 +14,7 @@ grants number IIS-0904350 and CNS-1058977.
 Linux kernel module to perform reverse DNS resolution by inspecting DNS packets. The resolution table could be obtained from user space by reading specific proc file.
 
 #### nfl_mod
-Linux kernel module to capture cross-boundary network packets and aggregate them in to unidirectional flows. The stored flow data can be obtained from user space by reading specific proc file.
+Linux kernel module to capture cross-boundary network packets and aggregate them in to unidirectional flows. The stored flow data can be obtained from user space by reading specific proc file (currently defined in nflc.h as /proc/nfl_mod).
 
 ## OpenWrt Packages
 #### drohn-mgmt
